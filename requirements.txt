@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+jinja2
+python-multipart
+sqlalchemy
+bcrypt
+pillow
+torch
+transformers
+anthropic
+python-dotenv

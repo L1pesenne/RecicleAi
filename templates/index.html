@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReCiclaí - Assistente Inteligente</title>
+    <style>
+        :root {
+            --primary: #10b981;
+            --primary-dark: #059669;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #1e293b;
+            --border: #e2e8f0;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: var(--bg); color: var(--text); height: 100vh; display: flex; justify-content: center; align-items: center; }
+        
+        /* Telas */
+        .screen { width: 100%; max-width: 480px; background: var(--card); border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); display: flex; flex-direction: column; overflow: hidden; height: 90vh; }
+        .hidden { display: none !important; }
+
+        /* Login */
+        .auth-container { padding: 40px; display: flex; flex-direction: column; justify-content: center; height: 100%; text-align: center; }
+        .auth-container h2 { margin-bottom: 24px; color: var(--primary-dark); }
+        .auth-container input { width: 100%; padding: 12px 16px; margin-bottom: 16px; border: 1px solid var(--border); border-radius: 8px; outline: none; }
+        .auth-container input:focus { border-color: var(--primary); }
+        .btn { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: 600; cursor: pointer; width: 100%; transition: background 0.2s; }
+        .btn:hover { background: var(--primary-dark); }
+        .switch-auth { margin-top: 16px; font-size: 14px; color: #64748b; cursor: pointer; }
+        .switch-auth span { color: var(--primary); font-weight: 600; }
+
+        /* Chat */
+        .chat-header { background: var(--primary); color: white; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; font-weight: 600; }
+        .logout-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+        .logout-btn:hover { background: rgba(255,255,255,0.3); }
+        
+        .chat-messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background: #f8fafc; }
+        .message { max-width: 80%; padding: 12px 16px; border-radius: 12px; font-size: 14px; line-height: 1.4; word-break: break-word; }
+        .message.user { background: var(--primary); color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
+        .message.assistant { background: white; color: var(--text); align-self: flex-start; border-bottom-left-radius: 2px; border: 1px solid var(--border); box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .message .msg-title { display: block; margin-bottom: 4px; font-size: 15px; color: var(--primary-dark); }
+        .message .msg-list { margin: 4px 0; padding-left: 18px; }
+        .message .msg-list li { margin-bottom: 2px; }
+        .typing { align-self: flex-start; color: #94a3b8; font-size: 13px; font-style: italic; }
+
+        .chat-input-area { padding: 16px; background: white; border-top: 1px solid var(--border); display: flex; gap: 8px; align-items: center; }
+        .chat-input-area input[type="text"] { flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; outline: none; }
+        .chat-input-area input[type="text"]:focus { border-color: var(--primary); }
+        .file-label { cursor: pointer; background: #f1f5f9; padding: 10px; border-radius: 8px; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
+        .file-label:hover { background: #e2e8f0; }
+        .send-btn { background: var(--primary); color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        .send-btn:hover { background: var(--primary-dark); }
+        .send-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        #fileInput { display: none; }
+        .file-indicator { font-size: 12px; color: var(--primary-dark); padding: 0 4px; }
+    </style>
+</head>
+<body>
+
+    <!-- TELA DE LOGIN / CADASTRO -->
+    <div id="authScreen" class="screen">
+        <div class="auth-container">
+            <h2 id="authTitle">Entrar no ReCiclaí</h2>
+            <input type="text" id="username" placeholder="Nome de usuário" />
+            <input type="password" id="password" placeholder="Senha" />
+            <button class="btn" onclick="handleAuth()" id="authBtn">Entrar</button>
+            <p class="switch-auth" onclick="toggleAuthMode()">
+                Não tem uma conta? <span id="switchText">Cadastre-se</span>
+            </p>
+            <p id="authError" style="color: #ef4444; font-size: 13px; margin-top: 10px;"></p>
+        </div>
+    </div>
+
+    <!-- TELA DO CHAT -->
+    <div id="chatScreen" class="screen hidden">
+        <div class="chat-header">
+            <span>ReCiclaí Assistant</span>
+            <button class="logout-btn" onclick="logout()">Sair</button>
+        </div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <div id="fileIndicator" class="file-indicator"></div>
+        <div class="chat-input-area">
+            <label for="fileInput" class="file-label" title="Enviar imagem">📎</label>
+            <input type="file" id="fileInput" accept="image/*" onchange="showFileChosen()" />
+            <input type="text" id="messageInput" placeholder="Digite uma mensagem ou envie uma foto..." onkeypress="handleKeyPress(event)" />
+            <button class="send-btn" onclick="sendMessage()">Enviar</button>
+        </div>
+    </div>
+
+    <script>
+        let isRegistering = false;
+        let currentUser = JSON.parse(localStorage.getItem('reciclai_user')) || null;
+
+        window.onload = () => {
+            if (currentUser) {
+                showChatScreen();
+                loadHistory();
+            }
+        };
+
+        function toggleAuthMode() {
+            isRegistering = !isRegistering;
+            document.getElementById('authTitle').innerText = isRegistering ? 'Criar Conta no ReCiclaí' : 'Entrar no ReCiclaí';
+            document.getElementById('authBtn').innerText = isRegistering ? 'Cadastrar' : 'Entrar';
+            document.getElementById('switchText').innerText = isRegistering ? 'Fazer Login' : 'Cadastre-se';
+            document.getElementById('authError').innerText = '';
+        }
+
+        async function handleAuth() {
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value.trim();
+            const errorEl = document.getElementById('authError');
+
+            if (!username || !password) {
+                errorEl.innerText = 'Preencha todos os campos.';
+                return;
+            }
+
+            const endpoint = isRegistering ? '/api/register' : '/api/login';
+            try {
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+
+                if (!res.ok) {
+                    errorEl.innerText = data.detail || 'Ocorreu um erro.';
+                    return;
+                }
+
+                if (isRegistering) {
+                    alert('Conta criada com sucesso! Faça login.');
+                    toggleAuthMode();
+                } else {
+                    currentUser = { id: data.user_id, username: data.username };
+                    localStorage.setItem('reciclai_user', JSON.stringify(currentUser));
+                    showChatScreen();
+                    loadHistory();
+                }
+            } catch (err) {
+                errorEl.innerText = 'Erro de conexão com o servidor.';
+            }
+        }
+
+        function showChatScreen() {
+            document.getElementById('authScreen').classList.add('hidden');
+            document.getElementById('chatScreen').classList.remove('hidden');
+        }
+
+        function logout() {
+            localStorage.removeItem('reciclai_user');
+            currentUser = null;
+            document.getElementById('chatScreen').classList.add('hidden');
+            document.getElementById('authScreen').classList.remove('hidden');
+            document.getElementById('chatMessages').innerHTML = '';
+        }
+
+        function showFileChosen() {
+            const fileInput = document.getElementById('fileInput');
+            const indicator = document.getElementById('fileIndicator');
+            if (fileInput.files.length > 0) {
+                indicator.innerText = `Arquivo anexado: ${fileInput.files[0].name}`;
+            } else {
+                indicator.innerText = '';
+            }
+        }
+
+        async function loadHistory() {
+            if (!currentUser) return;
+            try {
+                const res = await fetch(`/api/history/${currentUser.id}`);
+                const history = await res.json();
+                const container = document.getElementById('chatMessages');
+                container.innerHTML = '';
+                
+                if (history.length === 0) {
+                    appendMessage('assistant', 'Olá! Envie uma foto de um resíduo para análise ou digite uma dúvida.');
+                } else {
+                    history.forEach(msg => appendMessage(msg.role, msg.content));
+                }
+            } catch (err) {
+                console.error('Erro ao carregar histórico', err);
+            }
+        }
+
+        function escapeHtml(str) {
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
+        // Formatação leve: entende ### título, **negrito**, *itálico* e
+        // listas "- item", que é o que o backend (IA ou base de dados) usa.
+        function formatMessage(text) {
+            let safe = escapeHtml(text);
+            safe = safe.replace(/^### (.*)$/gm, '<strong class="msg-title">$1</strong>');
+            safe = safe.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            safe = safe.replace(/\*(.+?)\*/g, '<em>$1</em>');
+            safe = safe.replace(/(^|\n)((?:- .*(?:\n|$))+)/g, (_, prefix, block) => {
+                const items = block.trim().split('\n').map(l => l.replace(/^- /, ''));
+                return prefix + '<ul class="msg-list">' + items.map(i => `<li>${i}</li>`).join('') + '</ul>';
+            });
+            return safe.replace(/\n/g, '<br>');
+        }
+
+        function appendMessage(role, text) {
+            const container = document.getElementById('chatMessages');
+            const div = document.createElement('div');
+            div.className = `message ${role}`;
+            div.innerHTML = formatMessage(text);
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+            return div;
+        }
+
+        function showTyping() {
+            const container = document.getElementById('chatMessages');
+            const div = document.createElement('div');
+            div.className = 'message typing';
+            div.id = 'typingIndicator';
+            div.innerText = 'Digitando...';
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function hideTyping() {
+            const el = document.getElementById('typingIndicator');
+            if (el) el.remove();
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const fileInput = document.getElementById('fileInput');
+            const sendBtn = document.querySelector('.send-btn');
+            const text = input.value.trim();
+            const file = fileInput.files[0];
+
+            if (!text && !file) return;
+
+            let displayUserText = text;
+            if (file) displayUserText += ` [Foto: ${file.name}]`;
+            appendMessage('user', displayUserText);
+
+            input.value = '';
+            const formData = new FormData();
+            formData.append('user_id', currentUser.id);
+            formData.append('message', text);
+            if (file) formData.append('file', file);
+
+            fileInput.value = '';
+            document.getElementById('fileIndicator').innerText = '';
+
+            sendBtn.disabled = true;
+            showTyping();
+
+            try {
+                const res = await fetch('/api/chat', { method: 'POST', body: formData });
+                const data = await res.json();
+                hideTyping();
+                if (res.ok) {
+                    appendMessage('assistant', data.response);
+                } else {
+                    appendMessage('assistant', data.detail || 'Erro ao processar mensagem.');
+                }
+            } catch (err) {
+                hideTyping();
+                appendMessage('assistant', 'Erro de conexão com o servidor.');
+            } finally {
+                sendBtn.disabled = false;
+            }
+        }
+
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') sendMessage();
+        }
+    </script>
+</body>
+</html>
