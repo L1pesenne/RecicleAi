@@ -1,35 +1,39 @@
 import os
 import traceback
+from io import BytesIO
 from typing import Optional
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from starlette.concurrency import run_in_threadpool
 import bcrypt
 from pydantic import BaseModel
 from sqlalchemy import Column, ForeignKey, Integer, String, Text, create_engine
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker, Session
-import torch
 from PIL import Image
 
 try:
   from dotenv import load_dotenv
 
-  load_dotenv()
+  load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 except ImportError:
   pass
+
+from local_ai import generate_reply, model_status
 
 # Todos os caminhos são resolvidos a partir da pasta onde este arquivo está,
 # e não da pasta em que o comando foi executado. Isso evita bugs difíceis de
 # diagnosticar (banco "sumindo", template "não encontrado" etc.) quando o
 # servidor é iniciado de um diretório diferente.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+os.environ.setdefault("HF_HOME", os.path.join(BASE_DIR, ".runtime", "huggingface"))
 
 # A IA de visão (CLIP) é carregada somente quando uma imagem for enviada,
 # para não bloquear o servidor e as telas de login/histórico enquanto o
 # modelo é baixado.
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+DEVICE = "cpu"
 MODEL_ID = "openai/clip-vit-base-patch32"
 model = None
 processor = None
@@ -37,11 +41,13 @@ AI_OK = False
 
 
 def load_ai_model():
-  global model, processor, AI_OK
+  global model, processor, AI_OK, DEVICE
   if AI_OK:
     return True
   try:
     print("Carregando modelo de IA de visão (CLIP)... Aguarde.")
+    import torch
+    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     from transformers import CLIPModel, CLIPProcessor
 
     model = CLIPModel.from_pretrained(MODEL_ID).to(DEVICE)
@@ -52,27 +58,6 @@ def load_ai_model():
     print(f"Aviso: IA de visão desativada por erro: {e}")
   return AI_OK
 
-
-# --- IA de conversa (chat de texto especializado em meio ambiente) ---
-# Usa a API da Anthropic. Requer a variável de ambiente ANTHROPIC_API_KEY.
-# Sem ela, o chat de texto continua funcionando com uma mensagem avisando
-# que a chave não foi configurada, em vez de travar o servidor.
-ai_client = None
-try:
-  import anthropic
-
-  _api_key = os.environ.get("ANTHROPIC_API_KEY")
-  if _api_key:
-    ai_client = anthropic.Anthropic(api_key=_api_key)
-  else:
-    print(
-        "Aviso: ANTHROPIC_API_KEY não definida - o chat por IA vai responder"
-        " com um aviso até a chave ser configurada."
-    )
-except ImportError:
-  print("Aviso: pacote 'anthropic' não instalado - chat por IA desativado.")
-
-CHAT_MODEL = "claude-sonnet-5"  # troque para "claude-haiku-4-5-20251001" se quiser respostas mais rápidas/baratas
 
 SYSTEM_PROMPT_AMBIENTAL = """Você é o assistente de conversa do ReCiclaí, um aplicativo de reciclagem e sustentabilidade.
 
@@ -86,6 +71,12 @@ Seu papel é conversar de forma natural e prestativa, especializado em:
 Regras de resposta:
 - Responda sempre em português do Brasil.
 - Seja claro, amigável e direto; evite respostas longas demais.
+- Use estas orientações básicas como referência: papel e papelão devem estar
+  limpos e secos; esvazie e achate caixas de papelão para reduzir o volume.
+  Separe restos de comida dos materiais recicláveis. A aceitação de embalagens
+  e materiais especiais depende da coleta local. Não invente etapas de preparo.
+- Não invente pontos de coleta ou regras municipais. Quando depender da cidade,
+  peça a localização e recomende confirmar com o serviço local de coleta.
 - Se a pergunta do usuário não tiver relação com meio ambiente, responda
   normalmente mesmo assim (você é um assistente de conversa completo), mas,
   quando fizer sentido, conecte a resposta a alguma dica prática de
@@ -113,28 +104,8 @@ def obter_historico_para_ia(db: Session, user_id: int, limite: int = 12):
   return [{"role": m.role, "content": m.content} for m in msgs]
 
 
-def gerar_resposta_ia(mensagem_usuario: str, historico: list) -> str:
-  if ai_client is None:
-    return (
-        "O chat por IA ainda não está configurado neste servidor. Defina a"
-        " variável de ambiente ANTHROPIC_API_KEY com uma chave da API da"
-        " Anthropic (veja o README) e reinicie o servidor."
-    )
-  try:
-    mensagens = historico + [{"role": "user", "content": mensagem_usuario}]
-    resposta = ai_client.messages.create(
-        model=CHAT_MODEL,
-        max_tokens=600,
-        system=SYSTEM_PROMPT_AMBIENTAL,
-        messages=mensagens,
-    )
-    texto = "".join(
-        bloco.text for bloco in resposta.content if bloco.type == "text"
-    ).strip()
-    return texto or "Não consegui gerar uma resposta agora. Tente novamente."
-  except Exception as e:
-    traceback.print_exc()
-    return f"Erro ao consultar a IA de chat: {e}"
+async def gerar_resposta_ia(mensagem_usuario: str, historico: list) -> str:
+  return await generate_reply(SYSTEM_PROMPT_AMBIENTAL, mensagem_usuario, historico)
 
 
 app = FastAPI()
@@ -157,7 +128,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 # Configuração do Banco de Dados (SQLite)
-DATABASE_URL = f"sqlite:///{os.path.join(BASE_DIR, 'reciclai.db')}"
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{os.path.join(BASE_DIR, 'reciclai.db')}")
 engine = create_engine(
     DATABASE_URL, connect_args={"check_same_thread": False}
 )
@@ -184,7 +155,7 @@ class Message(Base):
 
 
 Base.metadata.create_all(bind=engine)
-print(f"Banco de dados em uso: {os.path.join(BASE_DIR, 'reciclai.db')}")
+print("Banco de dados inicializado.")
 
 
 # Segurança (Hash de Senhas)
@@ -289,13 +260,14 @@ def home(request: Request):
 
 
 @app.get("/api/health")
-def health():
+async def health():
   """Endpoint simples para checar rapidamente o estado do servidor."""
+  local = await model_status()
   return {
       "status": "ok",
-      "banco_de_dados": os.path.join(BASE_DIR, "reciclai.db"),
       "ia_visao_carregada": AI_OK,
-      "ia_chat_configurada": ai_client is not None,
+      "ia_chat_configurada": local["available"],
+      "ia_chat": local,
   }
 
 
@@ -308,6 +280,9 @@ def register(user: UserAuth, db: Session = Depends(get_db)):
     raise HTTPException(
         status_code=400, detail="Usuário e senha são obrigatórios."
     )
+
+  if len(password.encode("utf-8")) > 72:
+    raise HTTPException(400, "A senha deve ter no máximo 72 bytes em UTF-8.")
 
   existing = db.query(User).filter(User.username == username).first()
   if existing:
@@ -338,7 +313,8 @@ def login(user: UserAuth, db: Session = Depends(get_db)):
         status_code=500, detail=f"Erro interno ao consultar usuário: {e}"
     )
 
-  if not db_user or not verify_password(user.password, db_user.hashed_password):
+  if (not db_user or len(user.password.encode("utf-8")) > 72
+      or not verify_password(user.password, db_user.hashed_password)):
     raise HTTPException(status_code=400, detail="Usuário ou senha incorretos.")
 
   return {"success": True, "user_id": db_user.id, "username": db_user.username}
@@ -363,6 +339,13 @@ async def chat(
     db: Session = Depends(get_db),
 ):
   resposta_texto = ""
+  message = message.strip()
+  if not db.get(User, user_id):
+    raise HTTPException(404, "Usuário não encontrado.")
+  if not message and not (file and file.filename):
+    raise HTTPException(400, "Envie uma mensagem ou uma imagem.")
+  if len(message) > 6000:
+    raise HTTPException(400, "A mensagem deve ter no máximo 6000 caracteres.")
 
   # Histórico recente ANTES de salvar a mensagem atual, usado como contexto
   # para a IA de chat.
@@ -373,16 +356,19 @@ async def chat(
   if file and file.filename:
     user_msg_content += f" [Arquivo enviado: {file.filename}]"
 
-  db.add(Message(user_id=user_id, role="user", content=user_msg_content))
-  db.commit()
-
   # Processamento de Imagem com IA de visão (CLIP)
-  if file and file.filename and load_ai_model():
-    filepath = os.path.join(UPLOAD_FOLDER, file.filename)
-    with open(filepath, "wb") as buffer:
-      buffer.write(await file.read())
+  if file and file.filename:
+    data = await file.read(10 * 1024 * 1024 + 1)
+    if len(data) > 10 * 1024 * 1024:
+      raise HTTPException(413, "A imagem deve ter no máximo 10 MB.")
     try:
-      img = Image.open(filepath).convert("RGB")
+      img = Image.open(BytesIO(data)).convert("RGB")
+    except Exception as exc:
+      raise HTTPException(400, "Envie um arquivo de imagem válido.") from exc
+    if not await run_in_threadpool(load_ai_model):
+      raise HTTPException(503, "O modelo local de imagens está indisponível.")
+    try:
+      import torch
       entradas = processor(
           text=TODOS_PROMPTS, images=img, return_tensors="pt", padding=True
       ).to(DEVICE)
@@ -410,16 +396,14 @@ async def chat(
 *{d['impacto']}*"""
     except Exception as e:
       resposta_texto = f"Erro ao processar imagem: {str(e)}"
-    finally:
-      if os.path.exists(filepath):
-        os.remove(filepath)
   elif message:
     # Chat de conversa livre, especializado em meio ambiente.
-    resposta_texto = gerar_resposta_ia(message, historico_ia)
+    resposta_texto = await gerar_resposta_ia(message, historico_ia)
   else:
     resposta_texto = "Por favor, envie uma mensagem ou anexe uma foto."
 
   # Salva resposta do assistente no banco
+  db.add(Message(user_id=user_id, role="user", content=user_msg_content))
   db.add(
       Message(user_id=user_id, role="assistant", content=resposta_texto)
   )
@@ -433,4 +417,4 @@ if __name__ == "__main__":
 
   # Permite rodar tanto com "python app.py" quanto com
   # "uvicorn app:app --reload" (recomendado para desenvolvimento).
-  uvicorn.run(app, host="0.0.0.0", port=8000)
+  uvicorn.run(app, host="127.0.0.1", port=8000)

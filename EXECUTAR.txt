@@ -1,0 +1,60 @@
+COMO EXECUTAR O RECICLAÍ NO WINDOWS
+====================================
+
+Este guia prepara o projeto em um computador Windows. É necessário ter
+internet na instalação inicial para baixar as dependências e os modelos.
+
+1. INSTALAÇÕES NECESSÁRIAS
+
+- Instale o Python 3.12 (marque a opção para adicionar o Python ao PATH).
+- Instale o Ollama para Windows: https://ollama.com/download/windows
+- Baixe ou clone o repositório do projeto e abra a pasta RecicleAi no terminal.
+
+2. PREPARAR O PROJETO
+
+No PowerShell, dentro da pasta do projeto, execute:
+
+    py -3.12 -m venv .venv
+    .\.venv\Scripts\python.exe -m pip install --upgrade pip
+    .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+
+3. BAIXAR O MODELO DE CONVERSA
+
+Execute uma vez:
+
+    ollama pull hermes3:8b
+
+O download tem aproximadamente 4,7 GB. O Ollama precisa estar instalado e
+disponível no terminal como `ollama`.
+
+4. INICIAR O APLICATIVO
+
+Execute:
+
+    .\tools\Start-Local.ps1
+
+Se o PowerShell bloquear o script nesta sessão, execute primeiro:
+
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+
+Depois tente novamente o comando de inicialização. Quando aparecer o endereço,
+abra http://127.0.0.1:8000 no navegador. Para parar o servidor, pressione
+Ctrl+C no terminal.
+
+5. USAR IMAGENS
+
+O reconhecimento de imagens usa o CLIP, separado do Hermes. Na primeira imagem,
+o programa baixa o modelo do Hugging Face (é necessária internet e espaço em
+disco). Aguarde o carregamento inicial.
+
+OBSERVAÇÕES
+
+- O primeiro carregamento do Hermes pode demorar. O tempo varia conforme o PC.
+- Uma GPU compatível pode acelerar o processamento, mas não é obrigatória; sem
+  ela, o modelo funciona pelo processador e pode responder mais devagar.
+- O aplicativo salva usuários e conversas em `reciclai.db`, criado localmente.
+- Modelos baixados e arquivos do ambiente Python não fazem parte do repositório.
+- A classificação é educativa, pode falhar e não substitui a orientação da
+  coleta seletiva da sua cidade.
+- Este projeto é para uso local. Não o exponha à internet sem reforçar a
+  autenticação e a autorização das rotas.

@@ -1,0 +1,13 @@
+# Ambiente e configurações locais recriáveis
+venv/
+.venv/
+.vscode/
+.runtime/
+.env
+*.log
+
+# Dados gerados em execução
+__pycache__/
+*.py[cod]
+uploads/*
+!uploads/.gitkeep

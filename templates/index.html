@@ -1,282 +1,97 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ReCiclaí - Assistente Inteligente</title>
-    <style>
-        :root {
-            --primary: #10b981;
-            --primary-dark: #059669;
-            --bg: #f8fafc;
-            --card: #ffffff;
-            --text: #1e293b;
-            --border: #e2e8f0;
-        }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { background-color: var(--bg); color: var(--text); height: 100vh; display: flex; justify-content: center; align-items: center; }
-        
-        /* Telas */
-        .screen { width: 100%; max-width: 480px; background: var(--card); border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); display: flex; flex-direction: column; overflow: hidden; height: 90vh; }
-        .hidden { display: none !important; }
-
-        /* Login */
-        .auth-container { padding: 40px; display: flex; flex-direction: column; justify-content: center; height: 100%; text-align: center; }
-        .auth-container h2 { margin-bottom: 24px; color: var(--primary-dark); }
-        .auth-container input { width: 100%; padding: 12px 16px; margin-bottom: 16px; border: 1px solid var(--border); border-radius: 8px; outline: none; }
-        .auth-container input:focus { border-color: var(--primary); }
-        .btn { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: 600; cursor: pointer; width: 100%; transition: background 0.2s; }
-        .btn:hover { background: var(--primary-dark); }
-        .switch-auth { margin-top: 16px; font-size: 14px; color: #64748b; cursor: pointer; }
-        .switch-auth span { color: var(--primary); font-weight: 600; }
-
-        /* Chat */
-        .chat-header { background: var(--primary); color: white; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; font-weight: 600; }
-        .logout-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
-        .logout-btn:hover { background: rgba(255,255,255,0.3); }
-        
-        .chat-messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background: #f8fafc; }
-        .message { max-width: 80%; padding: 12px 16px; border-radius: 12px; font-size: 14px; line-height: 1.4; word-break: break-word; }
-        .message.user { background: var(--primary); color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
-        .message.assistant { background: white; color: var(--text); align-self: flex-start; border-bottom-left-radius: 2px; border: 1px solid var(--border); box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-        .message .msg-title { display: block; margin-bottom: 4px; font-size: 15px; color: var(--primary-dark); }
-        .message .msg-list { margin: 4px 0; padding-left: 18px; }
-        .message .msg-list li { margin-bottom: 2px; }
-        .typing { align-self: flex-start; color: #94a3b8; font-size: 13px; font-style: italic; }
-
-        .chat-input-area { padding: 16px; background: white; border-top: 1px solid var(--border); display: flex; gap: 8px; align-items: center; }
-        .chat-input-area input[type="text"] { flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; outline: none; }
-        .chat-input-area input[type="text"]:focus { border-color: var(--primary); }
-        .file-label { cursor: pointer; background: #f1f5f9; padding: 10px; border-radius: 8px; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
-        .file-label:hover { background: #e2e8f0; }
-        .send-btn { background: var(--primary); color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
-        .send-btn:hover { background: var(--primary-dark); }
-        .send-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-        #fileInput { display: none; }
-        .file-indicator { font-size: 12px; color: var(--primary-dark); padding: 0 4px; }
-    </style>
-</head>
-<body>
-
-    <!-- TELA DE LOGIN / CADASTRO -->
-    <div id="authScreen" class="screen">
-        <div class="auth-container">
-            <h2 id="authTitle">Entrar no ReCiclaí</h2>
-            <input type="text" id="username" placeholder="Nome de usuário" />
-            <input type="password" id="password" placeholder="Senha" />
-            <button class="btn" onclick="handleAuth()" id="authBtn">Entrar</button>
-            <p class="switch-auth" onclick="toggleAuthMode()">
-                Não tem uma conta? <span id="switchText">Cadastre-se</span>
-            </p>
-            <p id="authError" style="color: #ef4444; font-size: 13px; margin-top: 10px;"></p>
-        </div>
-    </div>
-
-    <!-- TELA DO CHAT -->
-    <div id="chatScreen" class="screen hidden">
-        <div class="chat-header">
-            <span>ReCiclaí Assistant</span>
-            <button class="logout-btn" onclick="logout()">Sair</button>
-        </div>
-        <div class="chat-messages" id="chatMessages"></div>
-        <div id="fileIndicator" class="file-indicator"></div>
-        <div class="chat-input-area">
-            <label for="fileInput" class="file-label" title="Enviar imagem">📎</label>
-            <input type="file" id="fileInput" accept="image/*" onchange="showFileChosen()" />
-            <input type="text" id="messageInput" placeholder="Digite uma mensagem ou envie uma foto..." onkeypress="handleKeyPress(event)" />
-            <button class="send-btn" onclick="sendMessage()">Enviar</button>
-        </div>
-    </div>
-
-    <script>
-        let isRegistering = false;
-        let currentUser = JSON.parse(localStorage.getItem('reciclai_user')) || null;
-
-        window.onload = () => {
-            if (currentUser) {
-                showChatScreen();
-                loadHistory();
-            }
-        };
-
-        function toggleAuthMode() {
-            isRegistering = !isRegistering;
-            document.getElementById('authTitle').innerText = isRegistering ? 'Criar Conta no ReCiclaí' : 'Entrar no ReCiclaí';
-            document.getElementById('authBtn').innerText = isRegistering ? 'Cadastrar' : 'Entrar';
-            document.getElementById('switchText').innerText = isRegistering ? 'Fazer Login' : 'Cadastre-se';
-            document.getElementById('authError').innerText = '';
-        }
-
-        async function handleAuth() {
-            const username = document.getElementById('username').value.trim();
-            const password = document.getElementById('password').value.trim();
-            const errorEl = document.getElementById('authError');
-
-            if (!username || !password) {
-                errorEl.innerText = 'Preencha todos os campos.';
-                return;
-            }
-
-            const endpoint = isRegistering ? '/api/register' : '/api/login';
-            try {
-                const res = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                });
-                const data = await res.json();
-
-                if (!res.ok) {
-                    errorEl.innerText = data.detail || 'Ocorreu um erro.';
-                    return;
-                }
-
-                if (isRegistering) {
-                    alert('Conta criada com sucesso! Faça login.');
-                    toggleAuthMode();
-                } else {
-                    currentUser = { id: data.user_id, username: data.username };
-                    localStorage.setItem('reciclai_user', JSON.stringify(currentUser));
-                    showChatScreen();
-                    loadHistory();
-                }
-            } catch (err) {
-                errorEl.innerText = 'Erro de conexão com o servidor.';
-            }
-        }
-
-        function showChatScreen() {
-            document.getElementById('authScreen').classList.add('hidden');
-            document.getElementById('chatScreen').classList.remove('hidden');
-        }
-
-        function logout() {
-            localStorage.removeItem('reciclai_user');
-            currentUser = null;
-            document.getElementById('chatScreen').classList.add('hidden');
-            document.getElementById('authScreen').classList.remove('hidden');
-            document.getElementById('chatMessages').innerHTML = '';
-        }
-
-        function showFileChosen() {
-            const fileInput = document.getElementById('fileInput');
-            const indicator = document.getElementById('fileIndicator');
-            if (fileInput.files.length > 0) {
-                indicator.innerText = `Arquivo anexado: ${fileInput.files[0].name}`;
-            } else {
-                indicator.innerText = '';
-            }
-        }
-
-        async function loadHistory() {
-            if (!currentUser) return;
-            try {
-                const res = await fetch(`/api/history/${currentUser.id}`);
-                const history = await res.json();
-                const container = document.getElementById('chatMessages');
-                container.innerHTML = '';
-                
-                if (history.length === 0) {
-                    appendMessage('assistant', 'Olá! Envie uma foto de um resíduo para análise ou digite uma dúvida.');
-                } else {
-                    history.forEach(msg => appendMessage(msg.role, msg.content));
-                }
-            } catch (err) {
-                console.error('Erro ao carregar histórico', err);
-            }
-        }
-
-        function escapeHtml(str) {
-            return str
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;');
-        }
-
-        // Formatação leve: entende ### título, **negrito**, *itálico* e
-        // listas "- item", que é o que o backend (IA ou base de dados) usa.
-        function formatMessage(text) {
-            let safe = escapeHtml(text);
-            safe = safe.replace(/^### (.*)$/gm, '<strong class="msg-title">$1</strong>');
-            safe = safe.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-            safe = safe.replace(/\*(.+?)\*/g, '<em>$1</em>');
-            safe = safe.replace(/(^|\n)((?:- .*(?:\n|$))+)/g, (_, prefix, block) => {
-                const items = block.trim().split('\n').map(l => l.replace(/^- /, ''));
-                return prefix + '<ul class="msg-list">' + items.map(i => `<li>${i}</li>`).join('') + '</ul>';
-            });
-            return safe.replace(/\n/g, '<br>');
-        }
-
-        function appendMessage(role, text) {
-            const container = document.getElementById('chatMessages');
-            const div = document.createElement('div');
-            div.className = `message ${role}`;
-            div.innerHTML = formatMessage(text);
-            container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
-            return div;
-        }
-
-        function showTyping() {
-            const container = document.getElementById('chatMessages');
-            const div = document.createElement('div');
-            div.className = 'message typing';
-            div.id = 'typingIndicator';
-            div.innerText = 'Digitando...';
-            container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
-        }
-
-        function hideTyping() {
-            const el = document.getElementById('typingIndicator');
-            if (el) el.remove();
-        }
-
-        async function sendMessage() {
-            const input = document.getElementById('messageInput');
-            const fileInput = document.getElementById('fileInput');
-            const sendBtn = document.querySelector('.send-btn');
-            const text = input.value.trim();
-            const file = fileInput.files[0];
-
-            if (!text && !file) return;
-
-            let displayUserText = text;
-            if (file) displayUserText += ` [Foto: ${file.name}]`;
-            appendMessage('user', displayUserText);
-
-            input.value = '';
-            const formData = new FormData();
-            formData.append('user_id', currentUser.id);
-            formData.append('message', text);
-            if (file) formData.append('file', file);
-
-            fileInput.value = '';
-            document.getElementById('fileIndicator').innerText = '';
-
-            sendBtn.disabled = true;
-            showTyping();
-
-            try {
-                const res = await fetch('/api/chat', { method: 'POST', body: formData });
-                const data = await res.json();
-                hideTyping();
-                if (res.ok) {
-                    appendMessage('assistant', data.response);
-                } else {
-                    appendMessage('assistant', data.detail || 'Erro ao processar mensagem.');
-                }
-            } catch (err) {
-                hideTyping();
-                appendMessage('assistant', 'Erro de conexão com o servidor.');
-            } finally {
-                sendBtn.disabled = false;
-            }
-        }
-
-        function handleKeyPress(e) {
-            if (e.key === 'Enter') sendMessage();
-        }
-    </script>
-</body>
-</html>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="theme-color" content="#f8f7f3">
+<meta name="description" content="Converse sobre reciclagem, reaproveitamento e escolhas mais conscientes.">
+<title>ReCiclaí — pequenas escolhas, novas possibilidades</title>
+<style>
+:root{--paper:#f8f7f3;--sidebar:#eeefe8;--white:#fdfdfa;--ink:#303a32;--muted:#73796f;--green:#526b53;--sage:#dfe6d9;--line:#dddfd5;--error:#945747;font-family:Inter,"Segoe UI",sans-serif;color:var(--ink);background:var(--paper);font-synthesis:none}*{box-sizing:border-box}body{margin:0}button,input,textarea{font:inherit}button{cursor:pointer;color:inherit}button:disabled{cursor:default;opacity:.45}button:focus-visible,a:focus-visible{outline:2px solid var(--green);outline-offset:4px}input:focus,textarea:focus{outline:none}input:focus-visible{box-shadow:0 0 0 3px #526b5322;border-color:var(--green)}[hidden]{display:none!important}svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}.symbols{position:absolute;width:0;height:0;overflow:hidden}.icon-btn{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border:0;border-radius:10px;background:transparent;color:var(--muted)}.icon-btn:hover{background:#526b5310;color:var(--green)}.brand{display:flex;align-items:center;gap:11px;font-size:25px;font-weight:650;letter-spacing:-1.1px}.brand-mark{display:grid;place-items:center;background:var(--green);color:#f3f5ed;width:37px;height:39px;border-radius:12px 12px 12px 3px}.brand-mark svg{width:25px;height:25px}.eyebrow{font-size:10px;font-weight:650;letter-spacing:2px;text-transform:uppercase;color:var(--muted)}.primary{border:0;background:var(--green);color:var(--white);padding:14px 20px;border-radius:11px;font-weight:550}.primary:hover:not(:disabled){background:#405742}.text-btn{border:0;background:none;color:var(--green);padding:4px;font-size:13px}.text-btn:hover{text-decoration:underline}.serif{font-family:Georgia,"Times New Roman",serif;font-weight:400}.skip-link{position:fixed;left:15px;top:-70px;z-index:10;background:var(--white);padding:12px}.skip-link:focus{top:10px}
+.workspace{display:grid;grid-template-columns:254px minmax(0,1fr);height:100dvh;min-height:460px}.sidebar{background:var(--sidebar);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:30px 19px 18px;min-height:0}.sidebar-head{display:flex;justify-content:space-between;align-items:center;padding:0 9px 34px}.nav-btn{display:flex;align-items:center;gap:11px;width:100%;border:0;background:transparent;text-align:left;padding:12px;border-radius:11px;font-size:13px}.nav-btn:hover{background:#e3e6dc}.nav-btn.active{background:var(--sage);color:#3f5942;font-weight:600}.nav-btn .arrow{margin-left:auto;width:15px}.section-label{font-size:10px;color:#81877b;font-weight:600;letter-spacing:1.3px;text-transform:uppercase;padding:30px 12px 12px;margin:0}.history-nav{overflow:auto;min-height:60px;max-height:36vh}.history-link{display:block;width:100%;background:none;border:0;text-align:left;font-size:12px;line-height:1.4;color:#646e61;padding:11px 12px;border-radius:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.history-link:hover{background:#e3e6dc}.history-empty{font-size:12px;line-height:1.7;color:#828779;padding:0 12px;margin:0;max-width:190px}.sidebar-bottom{margin-top:auto;padding-top:28px}.small-note{border:1px solid #d9ddce;border-radius:12px;padding:15px;margin:0 6px 22px}.small-note svg{color:#7d8c6f;width:20px;margin-bottom:5px}.small-note p{font-family:Georgia,serif;font-size:16px;line-height:1.45;margin:0;color:#626f59}.account{border-top:1px solid var(--line);padding:16px 7px 0;display:flex;align-items:center;gap:10px}.avatar{border-radius:50%;background:#d9decf;display:grid;place-items:center;height:33px;width:33px;font-size:12px;font-weight:600;flex-shrink:0}.account-info{flex:1;min-width:0}.account-name{font-size:12px;font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.account-label{font-size:10px;color:var(--muted);display:block;margin-top:3px}.account .icon-btn{width:30px}
+.main{min-width:0;display:flex;flex-direction:column;min-height:0;position:relative}.topbar{height:81px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 42px}.topbar-title{display:flex;align-items:center;gap:10px;font-size:13px;color:#6d7569}.topbar-title strong{font-weight:550;color:var(--ink);font-size:16px;letter-spacing:-.4px}.divider{width:1px;height:13px;background:var(--line)}.local-status{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--muted);background:#eff1e9;border:1px solid #e2e6d9;border-radius:20px;padding:7px 10px}.status-dot{width:5px;height:5px;border-radius:50%;background:#819574}.local-status.offline .status-dot{background:#b3916f}.mobile-only{display:none}.scroll-area{flex:1;overflow-y:auto;min-height:0;scroll-behavior:smooth;padding:0 30px}.welcome{max-width:760px;margin:clamp(20px,7vh,85px) auto 20px;text-align:center;animation:appear .35s ease}.botanical{position:relative;display:grid;place-items:center;width:82px;height:82px;border-radius:50%;margin:0 auto 27px;background:#e8ecdf;color:#6a805c}.botanical:before{content:"";position:absolute;inset:-8px;border:1px solid #e2e6d8;border-radius:50%}.botanical svg{width:42px;height:42px;stroke-width:1.1}.welcome .eyebrow{font-size:9px;letter-spacing:2.3px}.welcome h1{font-size:clamp(32px,3.4vw,47px);line-height:1.18;letter-spacing:-1.6px;margin:18px 0}.welcome h1 em{color:#6a805f;font-weight:400}.welcome-description{font-size:13px;line-height:1.8;color:var(--muted);max-width:405px;margin:0 auto}.suggestions{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:37px auto 0;text-align:left}.suggestion{border:1px solid var(--line);background:transparent;border-radius:13px;padding:19px 17px;position:relative;text-align:left;transition:background .2s,border-color .2s,transform .2s}.suggestion:hover{background:#eff1e7;border-color:#bdc9b6;transform:translateY(-2px)}.suggestion>svg{width:22px;height:22px;color:#738565;margin-bottom:17px}.suggestion b{font-size:12px;font-weight:600;display:block;margin-bottom:7px}.suggestion span{font-size:11px;line-height:1.7;display:block;color:var(--muted)}.suggestion .corner{position:absolute;top:18px;right:15px;width:13px;height:13px;color:#939d8a}.resume{margin-top:18px}.messages{max-width:748px;margin:25px auto 0;padding-bottom:28px;display:flex;flex-direction:column;gap:30px}.message{font-size:14px;line-height:1.85;overflow-wrap:anywhere;animation:appear .25s ease}.message.user{align-self:flex-end;background:#e9ecdf;padding:12px 20px;border-radius:20px 20px 4px 20px;max-width:84%;white-space:pre-wrap}.message.assistant{display:flex;gap:15px;align-items:flex-start}.message.assistant .brand-mark{width:28px;height:30px;border-radius:9px 9px 9px 2px;margin-top:3px;background:#e0e6d7;color:var(--green)}.message.assistant .brand-mark svg{width:19px;height:19px}.message-body{min-width:0;flex:1}.message-body p{margin:0 0 12px}.message-body ul{padding-left:21px;margin:10px 0}.message-body h3{font-size:16px;margin:8px 0}.message-body strong{font-weight:650}.copy-btn{font-size:10px;display:inline-flex;align-items:center;gap:5px;border:0;background:none;color:#90978a;margin-top:10px;padding:5px 0}.copy-btn:hover{color:var(--green)}.copy-btn svg{width:13px;height:13px}.typing{font-size:12px;color:var(--muted);display:flex;gap:9px;align-items:center}.dots{display:flex;gap:3px}.dots i{display:block;height:4px;width:4px;border-radius:50%;background:#80936e;animation:breathe 1.2s infinite}.dots i:nth-child(2){animation-delay:.15s}.dots i:nth-child(3){animation-delay:.3s}.message-photo{display:block;max-width:230px;max-height:200px;border-radius:10px;margin-bottom:8px}.loading-history{text-align:center;font-size:13px;color:var(--muted);margin:40px}
+.composer-area{flex-shrink:0;padding:14px 30px 19px;background:var(--paper)}.composer-wrap{max-width:748px;margin:auto}.composer{border:1px solid #d6dbce;background:var(--white);border-radius:20px;padding:17px 17px 11px;box-shadow:0 5px 20px #35492c05}.composer:focus-within{border-color:#9eaf90;box-shadow:0 0 0 3px #7e95640a}.composer textarea{display:block;background:transparent;width:100%;resize:none;border:0;color:var(--ink);font-size:14px;line-height:1.6;min-height:40px;max-height:150px;padding:0 2px 8px}.composer textarea::placeholder{color:#92978b}.composer-actions{display:flex;align-items:center;gap:11px}.attach-btn{display:flex;align-items:center;gap:7px;border:0;background:transparent;font-size:11px;color:#76816e;padding:8px 5px;border-radius:8px}.attach-btn:hover{background:#eff2e9}.attach-btn svg{width:17px;height:17px}.input-hint{margin-left:auto;font-size:10px;color:#979d90}.send-btn{background:var(--green);border:0;border-radius:11px;color:white;height:34px;width:35px;display:grid;place-items:center}.send-btn:hover:not(:disabled){background:#405742}.send-btn svg{width:18px;height:18px}.composer-footer{text-align:center;display:flex;justify-content:center;align-items:center;gap:6px;color:#919789;font-size:10px;margin-top:13px}.composer-footer svg{width:12px;height:12px}.attachment{display:flex;align-items:center;gap:10px;background:#eff1e9;max-width:100%;width:max-content;padding:7px;border-radius:11px;margin-bottom:13px}.attachment img{width:40px;height:40px;object-fit:cover;border-radius:6px}.attachment-name{max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}.attachment small{display:block;color:var(--muted);margin-top:3px;font-size:10px}.notice{font-size:12px;line-height:1.6;color:var(--error);margin:0 0 10px;display:flex;align-items:center;justify-content:space-between;gap:8px}.notice button{flex-shrink:0}.backdrop{display:none}.toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);padding:11px 18px;background:var(--ink);color:var(--white);font-size:12px;border-radius:12px;z-index:20;box-shadow:0 4px 25px #0001}
+.auth-screen{min-height:100dvh;display:grid;grid-template-columns:1.05fr 1fr}.auth-story{background:var(--sidebar);padding:48px 60px;display:flex;flex-direction:column;min-height:100dvh}.auth-story-content{max-width:450px;margin:auto 0;padding:50px 0}.auth-illustration{width:190px;height:180px;color:#849773;margin:0 0 35px}.auth-story h1{font-size:clamp(37px,4vw,59px);line-height:1.13;letter-spacing:-2px;margin:20px 0}.auth-story h1 em{color:var(--green)}.auth-story p{font-size:14px;color:var(--muted);line-height:1.8;max-width:350px}.auth-caption{color:#8b9280;font-size:10px;letter-spacing:1px}.auth-form-side{display:flex;align-items:center;justify-content:center;padding:45px 30px}.auth-card{width:100%;max-width:340px}.auth-card h2{font-size:32px;letter-spacing:-1px;margin:13px 0}.auth-card>p{font-size:13px;line-height:1.8;color:var(--muted);margin:0 0 31px}.field{margin-bottom:19px}.field label{display:block;font-size:12px;font-weight:550;margin-bottom:9px}.field input{width:100%;border:1px solid var(--line);border-radius:10px;background:var(--white);padding:13px 14px;color:var(--ink);font-size:13px}.field input::placeholder{color:#a0a496}.auth-card .primary{width:100%;margin-top:6px;font-size:13px}.auth-switch{display:block;margin:23px auto 0;font-size:12px}.auth-foot{display:flex;align-items:center;justify-content:center;gap:7px;color:#949b8c;font-size:10px;margin-top:40px}.auth-foot svg{width:13px;height:13px}.auth-error{font-size:12px;line-height:1.5;color:var(--error);margin:12px 0}
+@keyframes appear{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}@keyframes breathe{0%,80%,100%{opacity:.3;transform:translateY(0)}40%{opacity:1;transform:translateY(-2px)}}
+@media(min-width:1500px){.welcome{margin-top:11vh}.topbar{padding:0 52px}}
+@media(max-width:1050px){.workspace{grid-template-columns:220px minmax(0,1fr)}.sidebar{padding-left:12px;padding-right:12px}.topbar{padding:0 26px}.suggestion{padding:16px 12px}.auth-story{padding:35px}.welcome{margin-top:35px}}
+@media(max-width:760px){.workspace{display:flex;min-height:0}.main{width:100%}.sidebar{position:fixed;left:0;top:0;bottom:0;width:266px;z-index:5;transform:translateX(-100%);visibility:hidden;transition:transform .2s,visibility .2s}.sidebar-open .sidebar{transform:translateX(0);visibility:visible}.sidebar-open .backdrop{display:block;position:fixed;inset:0;background:#25322644;border:0;z-index:4}.mobile-only{display:inline-flex}.sidebar-head{padding-bottom:27px}.topbar{height:68px;padding:0 17px}.topbar-title{gap:8px}.topbar-title .subtitle,.topbar-title .divider{display:none}.topbar-title strong{font-size:17px}.local-status{font-size:10px}.scroll-area{padding:0 20px}.welcome{margin:35px auto 24px}.botanical{width:64px;height:64px;margin-bottom:24px}.botanical svg{width:35px;height:35px}.welcome h1{font-size:37px;letter-spacing:-1.5px}.welcome-description{font-size:12px;max-width:300px}.suggestions{gap:8px;margin-top:27px}.suggestion{padding:15px 12px}.suggestion b{font-size:11px}.suggestion span{font-size:10px;line-height:1.6}.suggestion>svg{margin-bottom:14px;width:20px}.suggestion .corner{display:none}.composer-area{padding:10px 14px 14px;padding-bottom:max(14px,env(safe-area-inset-bottom))}.composer{padding:14px 13px 10px;border-radius:17px}.composer textarea{font-size:16px;min-height:36px}.input-hint{display:none}.send-btn{margin-left:auto}.composer-footer{font-size:9px}.messages{margin-top:12px;gap:25px}.message{font-size:14px}.message.assistant{gap:10px}.message.user{max-width:91%}.auth-screen{grid-template-columns:1fr}.auth-story{min-height:auto;padding:28px 26px}.auth-story-content{padding:28px 0 8px;max-width:none}.auth-story h1{font-size:37px;letter-spacing:-1.4px}.auth-story p,.auth-caption,.auth-illustration{display:none}.auth-form-side{padding:36px 25px}.auth-card{max-width:400px}.auth-card h2{font-size:28px}.auth-foot{margin-top:26px}}
+@media(max-width:380px){.suggestions{grid-template-columns:1fr}.suggestion{padding:12px 14px;display:grid;grid-template-columns:22px 1fr;column-gap:12px}.suggestion>svg{grid-row:span 2;margin:0}.suggestion b{margin-bottom:2px}.welcome{margin-top:20px}.welcome h1{font-size:31px}.welcome-description{max-width:270px}}
+:root{--muted:#687261}.section-label,.history-empty{color:#727b6a}.composer-footer,.input-hint,.auth-foot,.copy-btn{color:#757e6b}
+@media(max-height:720px){.welcome{margin-top:20px}.botanical{width:55px;height:55px;margin-bottom:19px}.botanical svg{width:30px;height:30px}.welcome h1{font-size:36px;margin:13px 0}.suggestions{margin-top:23px}.suggestion{padding-top:14px;padding-bottom:14px}.suggestion>svg{margin-bottom:10px}.resume{margin-top:13px}}
+@media(max-height:720px) and (max-width:760px){.botanical{display:none}.welcome{margin-top:12px}.welcome h1{font-size:32px}.suggestions{margin-top:20px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head><body>
+<svg class="symbols" aria-hidden="true"><defs>
+<symbol id="leaf" viewBox="0 0 24 24"><path d="M19 4c-8-1-14 2-14 8a6 6 0 0 0 6 6c6 0 8-6 8-14Z"/><path d="M4 21c1-6 5-10 11-13M8 14l-1-5M11 11l5 1"/></symbol>
+<symbol id="chat" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 1-8 8H5l-3 3v-10a9 9 0 0 1 18-1Z"/><path d="M7 9h8M7 13h5"/></symbol>
+<symbol id="arrow" viewBox="0 0 24 24"><path d="M6 18 18 6M6 6h12v12"/></symbol>
+<symbol id="recycle" viewBox="0 0 24 24"><path d="m8 6 3-4 4 6M3 13l-1 5h8M19 13l3 5-3 3h-5M15 3v5h-5M2 12l5 1-1 5M18 21l-3-4 4-2"/></symbol>
+<symbol id="spark" viewBox="0 0 24 24"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5ZM20 2v4M18 4h4"/></symbol>
+<symbol id="sprout" viewBox="0 0 24 24"><path d="M12 22V12M12 15C4 15 2 11 3 6c6 0 9 4 9 9ZM12 12c0-6 3-9 9-9 0 6-3 9-9 9Z"/></symbol>
+<symbol id="photo" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/></symbol>
+<symbol id="up" viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6"/></symbol>
+<symbol id="close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+<symbol id="menu" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></symbol>
+<symbol id="exit" viewBox="0 0 24 24"><path d="M10 4H5v16h5M9 12h12m-4-4 4 4-4 4"/></symbol>
+<symbol id="copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V3H3v13h5"/></symbol>
+<symbol id="shield" viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6ZM8 12l3 3 5-6"/></symbol>
+</defs></svg>
+<a class="skip-link" href="#messageInput">Ir para a mensagem</a>
+<section id="authScreen" class="auth-screen" hidden aria-label="Acesso ao ReCiclaí">
+<div class="auth-story"><div class="brand"><span class="brand-mark"><svg><use href="#leaf"/></svg></span>ReCiclaí</div><div class="auth-story-content">
+<svg class="auth-illustration" viewBox="0 0 190 180" aria-hidden="true"><circle cx="95" cy="84" r="70" stroke="#d3dbca"/><path d="M95 165V72M95 126C50 128 31 102 34 69c40 0 61 26 61 57ZM95 97c-1-45 23-68 61-69 2 42-18 65-61 69ZM95 155c17-20 30-42 44-61M95 126 52 88" stroke-width="1.3"/><path d="M35 165h118" stroke="#c7d0bd"/></svg>
+<div class="eyebrow">Cada escolha pode florescer</div><h1 class="serif">Um novo olhar<br>para o que você<br><em>ia descartar.</em></h1><p>Ideias simples para cuidar do que é nosso. Converse, aprenda e dê novos caminhos aos seus resíduos.</p></div><span class="auth-caption">MENOS DESCARTE. MAIS POSSIBILIDADES.</span></div>
+<div class="auth-form-side"><div class="auth-card"><span class="eyebrow">Bem-vindo ao ReCiclaí</span><h2 id="authTitle" class="serif">Que bom ter você aqui.</h2><p id="authSubtitle">Entre para continuar sua conversa e cultivar novas ideias.</p>
+<form id="authForm"><div class="field"><label for="username">Nome de usuário</label><input id="username" name="username" autocomplete="username" placeholder="Como podemos chamar você?" required maxlength="80"></div><div class="field"><label for="password">Senha</label><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Sua senha" required></div><p id="authError" class="auth-error" role="alert" hidden></p><button id="authBtn" class="primary" type="submit">Entrar</button></form>
+<button id="authSwitch" class="text-btn auth-switch">Ainda não tem uma conta? Crie a sua</button><div class="auth-foot"><svg><use href="#shield"/></svg>Um espaço seu, no seu computador.</div></div></div>
+</section>
+<div id="chatScreen" class="workspace" hidden>
+<button id="backdrop" class="backdrop" aria-label="Fechar menu" tabindex="-1"></button>
+<aside id="sidebar" class="sidebar" aria-label="Navegação"><div class="sidebar-head"><div class="brand"><span class="brand-mark"><svg><use href="#leaf"/></svg></span>ReCiclaí</div><button id="closeMenu" class="icon-btn mobile-only" aria-label="Fechar menu"><svg><use href="#close"/></svg></button></div>
+<nav aria-label="Conversa"><button id="ideasNav" class="nav-btn active"><svg><use href="#spark"/></svg>Explorar ideias<svg class="arrow"><use href="#arrow"/></svg></button><button id="conversationNav" class="nav-btn"><svg><use href="#chat"/></svg>Sua conversa</button></nav>
+<h2 class="section-label">Suas últimas perguntas</h2><div id="historyNav" class="history-nav"></div>
+<div class="sidebar-bottom"><div class="small-note"><svg><use href="#sprout"/></svg><p>Pequenos hábitos.<br>Um futuro mais verde.</p></div><div class="account"><span id="avatar" class="avatar"></span><div class="account-info"><span id="accountName" class="account-name"></span><span class="account-label">Seu espaço consciente</span></div><button id="logoutBtn" class="icon-btn" aria-label="Sair da conta" title="Sair da conta"><svg><use href="#exit"/></svg></button></div></div></aside>
+<main id="main" class="main"><header class="topbar"><div class="topbar-title"><button id="openMenu" class="icon-btn mobile-only" aria-label="Abrir menu" aria-controls="sidebar" aria-expanded="false"><svg><use href="#menu"/></svg></button><strong>ReCiclaí</strong><span class="divider"></span><span class="subtitle">Seu assistente ecológico</span></div><span id="localStatus" class="local-status" role="status"><i class="status-dot"></i><span id="statusText">Conectando</span></span></header>
+<div id="scrollArea" class="scroll-area"><p id="historyLoading" class="loading-history" hidden>Preparando seu espaço…</p>
+<section id="welcome" class="welcome" aria-labelledby="welcomeTitle"><div class="botanical" aria-hidden="true"><svg><use href="#sprout"/></svg></div><span class="eyebrow">Um olhar mais consciente</span><h1 id="welcomeTitle" class="serif">Pequenas escolhas.<br><em>Novas possibilidades.</em></h1><p class="welcome-description">Um espaço para tirar dúvidas, dar nova vida às coisas<br>e cuidar do planeta, um hábito de cada vez.</p>
+<div class="suggestions"><button class="suggestion" data-prompt="Como separar os materiais recicláveis em casa?"><svg><use href="#recycle"/></svg><svg class="corner"><use href="#arrow"/></svg><b>Reciclar sem dúvidas</b><span>Descubra o destino certo<br>para cada material.</span></button><button class="suggestion" data-prompt="Quais são algumas ideias simples e seguras para reaproveitar potes de vidro?"><svg><use href="#spark"/></svg><svg class="corner"><use href="#arrow"/></svg><b>Dar uma nova vida</b><span>Encontre outros usos para<br>o que você já tem.</span></button><button class="suggestion" data-prompt="Quais pequenos hábitos posso adotar para produzir menos lixo?"><svg><use href="#sprout"/></svg><svg class="corner"><use href="#arrow"/></svg><b>Cultivar bons hábitos</b><span>Pequenas mudanças para<br>um dia a dia mais leve.</span></button></div><button id="resumeBtn" class="text-btn resume" hidden>Retomar minha conversa →</button></section>
+<div id="chatMessages" class="messages" role="log" aria-label="Mensagens da conversa" aria-live="polite" hidden></div></div>
+<div class="composer-area"><div class="composer-wrap"><div id="notice" class="notice" role="alert" hidden><span id="noticeText"></span><button id="retryBtn" class="text-btn" hidden>Tentar novamente</button></div>
+<form id="messageForm" class="composer"><div id="attachment" class="attachment" hidden><img id="attachmentPreview" alt="Prévia da foto selecionada"><div class="attachment-name"><span id="attachmentName"></span><small>Foto pronta para enviar</small></div><button id="removeFile" type="button" class="icon-btn" aria-label="Remover foto"><svg><use href="#close"/></svg></button></div><textarea id="messageInput" name="message" rows="1" maxlength="6000" placeholder="O que vamos transformar hoje?" aria-label="Sua mensagem"></textarea><div class="composer-actions"><button id="attachBtn" type="button" class="attach-btn"><svg><use href="#photo"/></svg>Adicionar foto</button><input id="fileInput" type="file" accept="image/*" hidden><span class="input-hint">Enter para enviar</span><button id="sendBtn" type="submit" class="send-btn" aria-label="Enviar mensagem" disabled><svg><use href="#up"/></svg></button></div></form>
+<div class="composer-footer"><svg><use href="#leaf"/></svg>O cuidado começa com uma pergunta. Confirme as regras da sua coleta local.</div></div></div></main></div>
+<div id="toast" class="toast" role="status" hidden></div>
+<script>
+const $=id=>document.getElementById(id);
+let currentUser=null,isRegistering=false,authBusy=false,busy=false,history=[],historyReady=false,selectedFile=null,previewUrl=null,retryAction=null,toastTimer,pendingTimer;
+try{const stored=JSON.parse(localStorage.getItem('reciclai_user'));if(stored&&Number.isInteger(stored.id)&&stored.id>0&&typeof stored.username==='string')currentUser=stored;}catch{}
+const icon=name=>`<svg aria-hidden="true"><use href="#${name}"/></svg>`;
+const escapeHtml=text=>String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+function inlineFormat(text){return escapeHtml(text).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');}
+function formatMessage(text){let list=false,result='';for(const line of String(text).split('\n')){if(/^\s*[-*] /.test(line)){if(!list)result+='<ul>';list=true;result+=`<li>${inlineFormat(line.replace(/^\s*[-*] /,''))}</li>`;continue;}if(list){result+='</ul>';list=false;}result+=/^#{1,3} /.test(line)?`<h3>${inlineFormat(line.replace(/^#{1,3} /,''))}</h3>`:line.trim()?`<p>${inlineFormat(line)}</p>`:'';}return result+(list?'</ul>':'');}
+function showToast(text){$('toast').textContent=text;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,3000);}
+function notice(text='',action=null){$('notice').hidden=!text;$('noticeText').textContent=text;retryAction=action;$('retryBtn').hidden=!action;}
+async function request(url,options){const response=await fetch(url,options);const data=await response.json();if(!response.ok)throw new Error(typeof data.detail==='string'?data.detail:'Não foi possível concluir. Confira os dados e tente novamente.');return data;}
+function updateSend(){$('sendBtn').disabled=busy||!historyReady||(!selectedFile&&!$('messageInput').value.trim());}
+function resizeInput(){$('messageInput').style.height='auto';$('messageInput').style.height=Math.min($('messageInput').scrollHeight,150)+'px';updateSend();}
+function scrollBottom(){requestAnimationFrame(()=>$('scrollArea').scrollTop=$('scrollArea').scrollHeight);}
+function setMenu(open){$('chatScreen').classList.toggle('sidebar-open',open);$('openMenu').setAttribute('aria-expanded',String(open));$('main').inert=open;if(open)$('closeMenu').focus();else if(matchMedia('(max-width:760px)').matches)$('openMenu').focus();}
+function showIdeas(){$('welcome').hidden=false;$('chatMessages').hidden=true;$('ideasNav').classList.add('active');$('conversationNav').classList.remove('active');$('resumeBtn').hidden=!history.length;$('scrollArea').scrollTop=0;}
+function showConversation(){$('welcome').hidden=true;$('chatMessages').hidden=false;$('ideasNav').classList.remove('active');$('conversationNav').classList.add('active');if(!history.length&&!busy)showIdeas();else scrollBottom();}
+function renderHistoryNav(){const nav=$('historyNav');nav.replaceChildren();const questions=history.map((m,i)=>({...m,index:i})).filter(m=>m.role==='user').slice(-6).reverse();if(!questions.length){const p=document.createElement('p');p.className='history-empty';p.textContent='As ideias que trocarmos vão aparecer por aqui.';nav.append(p);}questions.forEach(m=>{const button=document.createElement('button');button.className='history-link';button.textContent=m.content;button.title=m.content;button.addEventListener('click',()=>{showConversation();setMenu(false);requestAnimationFrame(()=>$('message-'+m.index)?.scrollIntoView({block:'start',behavior:'smooth'}));});nav.append(button);});$('resumeBtn').hidden=!history.length;}
+function appendMessage(role,text,index,photo){const row=document.createElement('article');row.className='message '+(role==='user'?'user':'assistant');if(index!==undefined)row.id='message-'+index;row.setAttribute('aria-label',role==='user'?'Você':'ReCiclaí');if(role==='user'){if(photo){const img=document.createElement('img');img.className='message-photo';img.alt='Foto enviada';img.src=photo;row.append(img);}const content=document.createElement('span');content.textContent=text;row.append(content);}else{const mark=document.createElement('span');mark.className='brand-mark';mark.innerHTML=icon('leaf');const body=document.createElement('div');body.className='message-body';body.innerHTML=formatMessage(text);const copy=document.createElement('button');copy.type='button';copy.className='copy-btn';copy.innerHTML=icon('copy')+'Copiar resposta';copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(text);showToast('Resposta copiada.');}catch{showToast('Não foi possível copiar. Selecione o texto da resposta.');}});body.append(copy);row.append(mark,body);}$('chatMessages').append(row);return row;}
+function renderMessages(){$('chatMessages').replaceChildren();history.forEach((m,i)=>appendMessage(m.role,m.content,i));renderHistoryNav();}
+async function loadHistory(){historyReady=false;updateSend();$('historyLoading').hidden=false;$('welcome').hidden=true;$('chatMessages').hidden=true;try{history=await request(`/api/history/${currentUser.id}`);if(!Array.isArray(history))throw new Error('Não foi possível abrir seu histórico.');renderMessages();historyReady=true;notice();showIdeas();}catch(error){notice(error.message||'Não foi possível carregar sua conversa.',loadHistory);}finally{$('historyLoading').hidden=true;updateSend();}}
+async function checkHealth(){try{const data=await request('/api/health');const ready=data.ia_chat_configurada;$('statusText').textContent=ready?'IA local':'IA indisponível';$('localStatus').classList.toggle('offline',!ready);$('localStatus').title=ready?'A conversa é processada neste computador.':'Inicie o serviço de IA local para conversar.';}catch{$('statusText').textContent='Sem conexão';$('localStatus').classList.add('offline');}}
+function enterWorkspace(){$('authScreen').hidden=true;$('chatScreen').hidden=false;$('accountName').textContent=currentUser.username;$('avatar').textContent=currentUser.username.slice(0,2).toUpperCase();loadHistory();checkHealth();}
+function toggleAuthMode(){if(authBusy)return;isRegistering=!isRegistering;$('authTitle').textContent=isRegistering?'Vamos cultivar boas ideias.':'Que bom ter você aqui.';$('authSubtitle').textContent=isRegistering?'Crie seu espaço para aprender e transformar pequenos hábitos.':'Entre para continuar sua conversa e cultivar novas ideias.';$('authBtn').textContent=isRegistering?'Criar minha conta':'Entrar';$('authSwitch').textContent=isRegistering?'Já tem uma conta? Entre aqui':'Ainda não tem uma conta? Crie a sua';$('password').autocomplete=isRegistering?'new-password':'current-password';$('authError').hidden=true;}
+async function handleAuth(event){event.preventDefault();if(authBusy)return;authBusy=true;$('authBtn').disabled=true;$('authSwitch').disabled=true;$('authError').hidden=true;const credentials={username:$('username').value.trim(),password:$('password').value};try{if(!credentials.username||!credentials.password)throw new Error('Preencha seu nome de usuário e sua senha.');const options={method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(credentials)};if(isRegistering)await request('/api/register',options);const data=await request('/api/login',options);currentUser={id:data.user_id,username:data.username};try{localStorage.setItem('reciclai_user',JSON.stringify(currentUser));}catch{}$('password').value='';enterWorkspace();}catch(error){$('authError').textContent=error.message==='Failed to fetch'?'Não foi possível conectar. Confira se o projeto está aberto.':error.message;$('authError').hidden=false;}finally{authBusy=false;$('authBtn').disabled=false;$('authSwitch').disabled=false;}}
+function clearFile(){selectedFile=null;if(previewUrl)URL.revokeObjectURL(previewUrl);previewUrl=null;$('attachment').hidden=true;$('attachmentPreview').removeAttribute('src');$('fileInput').value='';updateSend();}
+function selectFile(){const file=$('fileInput').files[0];if(!file)return;if(!file.type.startsWith('image/')){notice('Escolha uma imagem para enviar.');$('fileInput').value='';return;}if(file.size>10*1024*1024){notice('Essa imagem é muito grande. Escolha uma foto de até 10 MB.');$('fileInput').value='';return;}clearFile();selectedFile=file;previewUrl=URL.createObjectURL(file);$('attachmentPreview').src=previewUrl;$('attachmentName').textContent=file.name;$('attachment').hidden=false;notice();updateSend();}
+function setBusy(value){busy=value;$('messageInput').disabled=value;$('attachBtn').disabled=value;$('removeFile').disabled=value;$('logoutBtn').disabled=value;updateSend();}
+async function sendMessage(event){event?.preventDefault();const text=$('messageInput').value.trim();if(busy||!historyReady||(!text&&!selectedFile))return;const file=selectedFile;const photo=file?URL.createObjectURL(file):null;const content=text+(file?` [Arquivo enviado: ${file.name}]`:'');notice();setBusy(true);showConversation();const row=appendMessage('user',text||(file?'Foto enviada':''),undefined,photo);const typing=document.createElement('div');typing.className='typing';typing.setAttribute('role','status');typing.innerHTML='<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span>Preparando uma resposta…</span>';$('chatMessages').append(typing);scrollBottom();pendingTimer=setTimeout(()=>typing.lastElementChild.textContent='Ainda pensando… A primeira resposta pode levar um pouco mais.',12000);const body=new FormData();body.append('user_id',currentUser.id);body.append('message',text);if(file)body.append('file',file);try{const data=await request('/api/chat',{method:'POST',body});history.push({role:'user',content},{role:'assistant',content:data.response});row.id='message-'+(history.length-2);appendMessage('assistant',data.response,history.length-1);$('messageInput').value='';clearFile();renderHistoryNav();scrollBottom();checkHealth();}catch(error){row.remove();if(photo)URL.revokeObjectURL(photo);notice(error.message==='Failed to fetch'?'A conexão foi interrompida. Sua mensagem está aqui para tentar novamente.':error.message,()=>sendMessage());checkHealth();}finally{clearTimeout(pendingTimer);typing.remove();setBusy(false);resizeInput();$('messageInput').focus();}}
+$('authForm').addEventListener('submit',handleAuth);$('authSwitch').addEventListener('click',toggleAuthMode);$('messageForm').addEventListener('submit',sendMessage);$('messageInput').addEventListener('input',resizeInput);$('messageInput').addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();sendMessage();}});$('attachBtn').addEventListener('click',()=>$('fileInput').click());$('fileInput').addEventListener('change',selectFile);$('removeFile').addEventListener('click',clearFile);$('retryBtn').addEventListener('click',()=>retryAction?.());
+document.querySelectorAll('[data-prompt]').forEach(button=>button.addEventListener('click',()=>{if(busy)return;$('messageInput').value=button.dataset.prompt;resizeInput();$('messageInput').focus();}));$('ideasNav').addEventListener('click',()=>{showIdeas();setMenu(false);});$('conversationNav').addEventListener('click',()=>{showConversation();setMenu(false);});$('resumeBtn').addEventListener('click',showConversation);$('openMenu').addEventListener('click',()=>setMenu(true));$('closeMenu').addEventListener('click',()=>setMenu(false));$('backdrop').addEventListener('click',()=>setMenu(false));
+document.addEventListener('keydown',event=>{if(!$('chatScreen').classList.contains('sidebar-open'))return;if(event.key==='Escape')setMenu(false);if(event.key==='Tab'){const items=Array.from($('sidebar').querySelectorAll('button:not(:disabled)')).filter(el=>el.getClientRects().length);const first=items[0],last=items[items.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}});matchMedia('(max-width:760px)').addEventListener('change',()=>setMenu(false));
+$('logoutBtn').addEventListener('click',()=>{if(busy)return;setMenu(false);try{localStorage.removeItem('reciclai_user');}catch{}currentUser=null;history=[];historyReady=false;clearFile();$('messageInput').value='';$('chatMessages').replaceChildren();$('chatScreen').hidden=true;$('authScreen').hidden=false;notice();$('username').focus();});
+if(currentUser)enterWorkspace();else $('authScreen').hidden=false;
+</script></body></html>

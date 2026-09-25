@@ -7,5 +7,5 @@ bcrypt
 pillow
 torch
 transformers
-anthropic
+httpx
 python-dotenv
